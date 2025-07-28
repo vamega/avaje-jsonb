@@ -43,6 +43,9 @@ final class ClassReader implements BeanReader {
   private final List<TypeSubTypeMeta> subTypes;
   private final boolean pkgPrivate;
 
+  /** Flag indicating whether to use the builder pattern for object creation */
+  private final boolean useBuilder;
+
   /** An Interface/abstract type with a single implementation */
   private ClassReader implementation;
 
@@ -59,6 +62,35 @@ final class ClassReader implements BeanReader {
     this.typeProperty = ncReader.typeProperty();
     this.caseInsensitiveKeys = ncReader.isCaseInsensitiveKeys();
     this.typeReader = new TypeReader(errorContext, beanType, mixInElement, namingConvention, typePropertyKey());
+
+    // Check if the class has a static builder() method
+    boolean hasBuilderMethod = false;
+    for (Element element : beanType.getEnclosedElements()) {
+      if (element.getKind() == ElementKind.METHOD
+          && element.getSimpleName().toString().equals("builder")
+          && element.getModifiers().contains(javax.lang.model.element.Modifier.STATIC)) {
+        hasBuilderMethod = true;
+        break;
+      }
+    }
+
+    // Check if the class has no public constructors
+    boolean hasNoPublicConstructors = true;
+    for (Element element : beanType.getEnclosedElements()) {
+      if (element.getKind() == ElementKind.CONSTRUCTOR
+          && element.getModifiers().contains(javax.lang.model.element.Modifier.PUBLIC)) {
+        hasNoPublicConstructors = false;
+        break;
+      }
+    }
+
+    // Use builder pattern if the class has a static builder() method and no public constructors
+    this.useBuilder = hasBuilderMethod && hasNoPublicConstructors;
+
+    // Pass the useBuilder flag to the TypeReader BEFORE processing
+    typeReader.setUseBuilder(this.useBuilder);
+
+    // Now process the type
     typeReader.process();
     this.nonAccessibleField = typeReader.nonAccessibleField();
     this.hasSubTypes = typeReader.hasSubTypes();
@@ -447,8 +479,8 @@ final class ClassReader implements BeanReader {
 
   private void writeFromJsonImplementation(Append writer, String varName) {
     final boolean directLoad = constructor == null && !hasSubTypes && !optional;
-    if (directLoad) {
-      // default public constructor
+    if (directLoad && !useBuilder) {
+      // default public constructor - only use this if not using builder pattern
       writer.append("    %s _$%s = new %s();", shortName, varName, shortName).eol();
     } else {
       writer.append("    // variables to read json values into, constructor params don't need _set$ flags").eol();
@@ -478,13 +510,13 @@ final class ClassReader implements BeanReader {
       writeFromJsonWithSubTypes(writer);
       return;
     }
-    if (!directLoad) {
+    if (!directLoad || useBuilder) {
       writeJsonBuildResult(writer, varName);
     } else if (unmappedField != null) {
       writer.append("   // unmappedField... ", varName).eol();
       unmappedField.writeFromJsonUnmapped(writer, varName);
     }
-    if (directLoad) {
+    if (directLoad && !useBuilder) {
       writer.append("    return _$%s;", varName).eol();
     }
     writer.append("  }").eol();
@@ -500,51 +532,79 @@ final class ClassReader implements BeanReader {
       .collect(toList());
 
     boolean directReturn = buildFields.isEmpty();
-    if (!directReturn) {
-      writer.append("    // build and return %s", shortName).eol();
-    } else {
-      writer.append("    // direct return").eol();
-      writer.append("    return ");
-    }
-    if (constructor == null) {
-      if (directReturn) {
-        writer.append("new %s(", shortName);
-      } else {
-        writer.append("    %s _$%s = new %s(", shortName, varName, shortName);
-      }
-    } else {
+
+    if (useBuilder) {
+      // Use builder pattern
       if (!directReturn) {
-        writer.append("    %s _$%s = ", shortName, varName);
-      }
-      writer.append(constructor.creationString());
-      final List<MethodReader.MethodParam> params = constructor.getParams();
-      for (int i = 0, size = params.size(); i < size; i++) {
-        if (i > 0) {
-          writer.append(", ");
+        writer.append("    // build and return %s using builder pattern", shortName).eol();
+        writer.append("    var _builder = %s.builder();", shortName).eol();
+
+        // Call with* methods on the builder for each field
+        for (final FieldReader field : allFields) {
+          if (field.includeFromJson()) {
+            String fieldName = field.fieldName();
+            String withMethodName = "with" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+            writer.append("    if (_set$%s) {", fieldName).eol();
+            writer.append("      _builder.%s(_val$%s);", withMethodName, fieldName).eol();
+            writer.append("    }").eol();
+          }
         }
 
-        final var paramName = params.get(i).name();
-        var name =
-          allFields.stream()
-            .filter(FieldReader::isConstructorParam)
-            .filter(f -> f.propertyName().equals(paramName) || f.fieldName().equals(paramName))
-            .map(FieldReader::fieldName)
-            .findFirst()
-            .orElse(paramName);
-
-        // append increasing numbers to constructor params sharing names with other subtypes
-        final var frequency = frequencyMap.compute(name, (k, v) -> v == null ? 0 : v + 1);
-        // assuming name matches field here?
-        writer.append(constructorParamName(name + (frequency == 0 ? "" : frequency.toString())));
+        // Build the object and return it
+        writer.append("    return _builder.build();").eol();
+      } else {
+        // Direct return with builder
+        writer.append("    // direct return using builder pattern").eol();
+        writer.append("    return %s.builder().build();", shortName).eol();
       }
-    }
-    writer.append(");").eol();
-    for (final FieldReader allField : buildFields) {
-      frequencyMap.compute(allField.fieldName(), (k, v) -> v == null ? 0 : v + 1);
-      allField.writeFromJsonSetter(writer, varName, "");
-    }
-    if (!directReturn) {
-      writer.append("    return _$%s;", varName).eol();
+    } else {
+      // Original implementation for non-builder classes
+      if (!directReturn) {
+        writer.append("    // build and return %s", shortName).eol();
+      } else {
+        writer.append("    // direct return").eol();
+        writer.append("    return ");
+      }
+      if (constructor == null) {
+        if (directReturn) {
+          writer.append("new %s(", shortName);
+        } else {
+          writer.append("    %s _$%s = new %s(", shortName, varName, shortName);
+        }
+      } else {
+        if (!directReturn) {
+          writer.append("    %s _$%s = ", shortName, varName);
+        }
+        writer.append(constructor.creationString());
+        final List<MethodReader.MethodParam> params = constructor.getParams();
+        for (int i = 0, size = params.size(); i < size; i++) {
+          if (i > 0) {
+            writer.append(", ");
+          }
+
+          final var paramName = params.get(i).name();
+          var name =
+            allFields.stream()
+              .filter(FieldReader::isConstructorParam)
+              .filter(f -> f.propertyName().equals(paramName) || f.fieldName().equals(paramName))
+              .map(FieldReader::fieldName)
+              .findFirst()
+              .orElse(paramName);
+
+          // append increasing numbers to constructor params sharing names with other subtypes
+          final var frequency = frequencyMap.compute(name, (k, v) -> v == null ? 0 : v + 1);
+          // assuming name matches field here?
+          writer.append(constructorParamName(name + (frequency == 0 ? "" : frequency.toString())));
+        }
+      }
+      writer.append(");").eol();
+      for (final FieldReader allField : buildFields) {
+        frequencyMap.compute(allField.fieldName(), (k, v) -> v == null ? 0 : v + 1);
+        allField.writeFromJsonSetter(writer, varName, "");
+      }
+      if (!directReturn) {
+        writer.append("    return _$%s;", varName).eol();
+      }
     }
   }
 
@@ -621,12 +681,17 @@ final class ClassReader implements BeanReader {
       if (!seen.add(name)) {
         continue;
       }
+
+      // When using builder pattern, we always want to read values into variables
+      // rather than trying to set them directly on the object
+      boolean useDirectSetting = defaultConstructor && !useBuilder;
+
       if (hasSubTypes) {
         final var isCommonFieldDiffType = isCommonFieldMap.get(name);
         if (isCommonFieldDiffType == null || !isCommonFieldDiffType) {
           allField.writeFromJsonSwitch(
             writer,
-            defaultConstructor,
+            useDirectSetting,
             varName,
             caseInsensitiveKeys,
             allFields.stream()
@@ -640,12 +705,12 @@ final class ClassReader implements BeanReader {
             name,
             writer,
             allFields.stream().filter(x -> x.fieldName().equals(name)).collect(toList()),
-            defaultConstructor,
+            useDirectSetting,
             varName);
         }
 
       } else
-        allField.writeFromJsonSwitch(writer, defaultConstructor, varName, caseInsensitiveKeys, List.of());
+        allField.writeFromJsonSwitch(writer, useDirectSetting, varName, caseInsensitiveKeys, List.of());
     }
     writer.append("        default:").eol();
     final String unmappedFieldName = caseInsensitiveKeys ? "origFieldName" : "fieldName";

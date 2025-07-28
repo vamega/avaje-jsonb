@@ -8,6 +8,7 @@ final class NamingConventionReader {
 
   private final String typeProperty;
   private final boolean caseInsensitiveKeys;
+  private final boolean builder;
   private final NamingConvention namingConvention;
 
   NamingConventionReader(TypeElement element) {
@@ -16,12 +17,14 @@ final class NamingConventionReader {
       typeProperty = null;
       namingConvention = null;
       caseInsensitiveKeys = false;
+      builder = false;
       return;
     }
     final var jsonAnnotation = jsonOptional.get();
     namingConvention = NamingConvention.of(naming(jsonAnnotation.naming()));
     typeProperty = Util.escapeQuotes(jsonAnnotation.typeProperty());
     caseInsensitiveKeys = jsonAnnotation.caseInsensitiveKeys();
+    builder = false; // We're not using this field, detection is done in ClassReader
   }
 
   static Naming naming(String entry) {

@@ -60,6 +60,15 @@ public @interface Json {
   boolean caseInsensitiveKeys() default false;
 
   /**
+   * When set to true, indicates that the class uses the builder pattern for instantiation.
+   * <p>
+   * This is useful for classes that don't have a public constructor but provide a static builder() method.
+   * The builder class is expected to have with* prefixed methods for setting properties and a build() method
+   * to create the final object.
+   */
+  boolean builder() default false;
+
+  /**
    * Specify types to generate JsonAdapters for.
    *
    * <p>These types are typically in an external project / dependency or otherwise types that we
