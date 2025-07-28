@@ -5,6 +5,7 @@ final class Constants {
   static final String META_INF_COMPONENT = "META-INF/services/io.avaje.jsonb.spi.JsonbExtension";
   static final String JSONB = "io.avaje.jsonb.Jsonb";
   static final String JSON = "io.avaje.jsonb.Json";
+  static final String JSON_BUILDER = "io.avaje.jsonb.Json.Builder";
   static final String JSON_IMPORT = "io.avaje.jsonb.Json.Import";
   static final String JSON_IMPORT_LIST = "io.avaje.jsonb.Json.Import.Imports";
   static final String JSON_MIXIN = "io.avaje.jsonb.Json.MixIn";

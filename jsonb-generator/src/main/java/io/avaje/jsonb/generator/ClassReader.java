@@ -43,6 +43,12 @@ final class ClassReader implements BeanReader {
   private final List<TypeSubTypeMeta> subTypes;
   private final boolean pkgPrivate;
 
+  /** Flag indicating whether to use the builder pattern for object creation */
+  private final boolean useBuilder;
+
+  /** Configuration for builder pattern */
+  private final BuilderConfig builderConfig;
+
   /** An Interface/abstract type with a single implementation */
   private ClassReader implementation;
 
@@ -59,6 +65,15 @@ final class ClassReader implements BeanReader {
     this.typeProperty = ncReader.typeProperty();
     this.caseInsensitiveKeys = ncReader.isCaseInsensitiveKeys();
     this.typeReader = new TypeReader(errorContext, beanType, mixInElement, namingConvention, typePropertyKey());
+
+    // Read builder configuration from top-level @Json.Builder annotation
+    this.builderConfig = BuilderConfig.fromBuilderAnnotation(beanType);
+    this.useBuilder = builderConfig.isEnabled();
+
+    // Pass the builder configuration to the TypeReader BEFORE processing
+    typeReader.setBuilderConfig(this.builderConfig);
+
+    // Now process the type
     typeReader.process();
     this.nonAccessibleField = typeReader.nonAccessibleField();
     this.hasSubTypes = typeReader.hasSubTypes();
@@ -446,7 +461,7 @@ final class ClassReader implements BeanReader {
   }
 
   private void writeFromJsonImplementation(Append writer, String varName) {
-    final boolean directLoad = constructor == null && !hasSubTypes && !optional;
+    final boolean directLoad = constructor == null && !hasSubTypes && !optional && !useBuilder;
     if (directLoad) {
       // default public constructor
       writer.append("    %s _$%s = new %s();", shortName, varName, shortName).eol();
@@ -495,6 +510,45 @@ final class ClassReader implements BeanReader {
   }
 
   private void writeJsonBuildResult(Append writer, String varName) {
+    if (useBuilder) {
+      writeJsonBuildResultUsingBuilder(writer, varName);
+    } else {
+      writeJsonBuildResultDirect(writer, varName);
+    }
+  }
+
+  private void writeJsonBuildResultUsingBuilder(Append writer, String varName) {
+    var buildFields = allFields.stream()
+      .filter(FieldReader::includeFromJsonBuild)
+      .collect(toList());
+
+    boolean directReturn = buildFields.isEmpty();
+
+    if (!directReturn) {
+      writer.append("    // build and return %s using builder pattern", shortName).eol();
+      writer.append("    var _builder = %s.%s();", shortName, builderConfig.getBuilderMethod()).eol();
+
+      // Call builder setter methods for each field
+      for (final FieldReader field : allFields) {
+        if (field.includeFromJson()) {
+          String fieldName = field.fieldName();
+          String setterMethodName = builderConfig.getSetterMethodName(fieldName);
+          writer.append("    if (_set$%s) {", fieldName).eol();
+          writer.append("      _builder.%s(_val$%s);", setterMethodName, fieldName).eol();
+          writer.append("    }").eol();
+        }
+      }
+
+      // Build the object and return it
+      writer.append("    return _builder.%s();", builderConfig.getBuildMethod()).eol();
+    } else {
+      // Direct return with builder
+      writer.append("    // direct return using builder pattern").eol();
+      writer.append("    return %s.%s().%s();", shortName, builderConfig.getBuilderMethod(), builderConfig.getBuildMethod()).eol();
+    }
+  }
+
+  private void writeJsonBuildResultDirect(Append writer, String varName) {
     var buildFields = allFields.stream()
       .filter(FieldReader::includeFromJsonBuild)
       .collect(toList());

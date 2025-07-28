@@ -5,6 +5,7 @@ import static io.avaje.jsonb.generator.APContext.logError;
 import static io.avaje.jsonb.generator.APContext.logNote;
 import static io.avaje.jsonb.generator.APContext.typeElement;
 import static io.avaje.jsonb.generator.Constants.JSON;
+import static io.avaje.jsonb.generator.Constants.JSON_BUILDER;
 import static io.avaje.jsonb.generator.Constants.JSON_IMPORT;
 import static io.avaje.jsonb.generator.Constants.JSON_IMPORT_LIST;
 import static io.avaje.jsonb.generator.Constants.JSON_MIXIN;
@@ -52,6 +53,7 @@ import io.avaje.prism.GenerateUtils;
 @SupportedAnnotationTypes({
   CustomAdapterPrism.PRISM_TYPE,
   JSON,
+  JSON_BUILDER,
   JSON_IMPORT,
   JSON_IMPORT_LIST,
   JSON_MIXIN,

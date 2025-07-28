@@ -75,6 +75,9 @@ final class TypeReader {
   private final boolean hasJsonCreator;
   private final boolean pkgPrivate;
 
+  /** Configuration for builder pattern */
+  private BuilderConfig builderConfig = BuilderConfig.disabled();
+
   TypeReader(String errorContext, TypeElement baseType, TypeElement mixInType, NamingConvention namingConvention, String typePropertyKey) {
     this.errorContext = errorContext;
     this.baseType = baseType;
@@ -355,6 +358,10 @@ final class TypeReader {
     if (hasNoSetter(field)) {
       if (isCollectionType(field.type())) {
         field.setUseGetterAddAll();
+      } else if (builderConfig.isEnabled()) {
+        // When using builder pattern, we don't need setters or public fields
+        // The fields will be set using the builder's methods
+        return;
       } else {
         logError(errorContext + baseType + ", non public field " + field.fieldName() + " with no matching setter or constructor?");
       }
@@ -691,5 +698,12 @@ final class TypeReader {
 
   boolean isPkgPrivate() {
     return pkgPrivate;
+  }
+
+  /**
+   * Set the builder configuration for object creation.
+   */
+  void setBuilderConfig(BuilderConfig builderConfig) {
+    this.builderConfig = builderConfig;
   }
 }

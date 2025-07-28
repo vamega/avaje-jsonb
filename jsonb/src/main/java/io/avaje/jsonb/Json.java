@@ -362,6 +362,44 @@ public @interface Json {
     Class<? extends JsonAdapter<?>> value();
   }
 
+
+  /**
+   * Configure builder pattern deserialization for JSON adapters.
+   * <p>
+   * Use this annotation on classes that follow the builder pattern to specify
+   * how the JSON adapter should construct instances during deserialization.
+   *
+   * <pre>{@code
+   * @Json
+   * @Json.Builder(setterPrefix = "with")
+   * public class Message {
+   *   // class with builder pattern
+   * }
+   * }</pre>
+   */
+  @Target(TYPE)
+  @Retention(SOURCE)
+  @interface Builder {
+
+    /**
+     * The prefix used for setter methods in the builder.
+     * Defaults to empty string (no prefix).
+     */
+    String setterPrefix() default "";
+
+    /**
+     * The name of the static method that creates a new builder instance.
+     * Defaults to "builder".
+     */
+    String builderMethod() default "builder";
+
+    /**
+     * The name of the method that builds the final instance.
+     * Defaults to "build".
+     */
+    String buildMethod() default "build";
+  }
+
   /**
    * The naming convention that we can use for a given type.
    */
