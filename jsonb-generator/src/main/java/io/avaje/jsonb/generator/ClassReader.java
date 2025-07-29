@@ -68,7 +68,7 @@ final class ClassReader implements BeanReader {
 
     // Read builder configuration from annotation
     JsonPrism jsonPrism = JsonPrism.getInstanceOn(beanType);
-    this.builderConfig = (jsonPrism != null) ? BuilderConfig.fromPrism(jsonPrism) : BuilderConfig.disabled();
+    this.builderConfig = (jsonPrism != null) ? BuilderConfig.fromPrism(jsonPrism, beanType) : BuilderConfig.disabled();
     this.useBuilder = builderConfig.isEnabled();
 
     // Pass the builder configuration to the TypeReader BEFORE processing

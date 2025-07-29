@@ -66,7 +66,7 @@ public final class SetterStyleMessage {
 
         private Builder() {}
 
-        // Setter style - with "set" prefix
+        // Setter style - uses "set" prefix
         public Builder setSubject(String val) {
             subject = val;
             return this;
