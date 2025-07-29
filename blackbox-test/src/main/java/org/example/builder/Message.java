@@ -3,7 +3,7 @@ package org.example.builder;
 import io.avaje.jsonb.Json;
 import java.util.Objects;
 
-@Json
+@Json(builder = true)
 public final class Message {
     private final String message;
     private final String greeting;

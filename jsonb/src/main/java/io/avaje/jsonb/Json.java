@@ -65,8 +65,19 @@ public @interface Json {
    * This is useful for classes that don't have a public constructor but provide a static builder() method.
    * The builder class is expected to have with* prefixed methods for setting properties and a build() method
    * to create the final object.
+   * 
+   * @deprecated Use {@link #builderConfig()} for more detailed builder configuration
    */
+  @Deprecated
   boolean builder() default false;
+
+  /**
+   * Configuration for builder pattern deserialization.
+   * <p>
+   * When specified, indicates that the class uses the builder pattern for instantiation.
+   * This provides more flexibility than the simple {@link #builder()} flag.
+   */
+  Builder builderConfig() default @Builder;
 
   /**
    * Specify types to generate JsonAdapters for.
@@ -369,6 +380,56 @@ public @interface Json {
      * The custom serializer to use with this property.
      */
     Class<? extends JsonAdapter<?>> value();
+  }
+
+  /**
+   * Configuration for builder pattern deserialization.
+   * <p>
+   * This annotation provides detailed configuration for how to use the builder pattern
+   * when deserializing JSON to objects.
+   * <p>
+   * Example usage:
+   * <pre>{@code
+   * @Json(builderConfig = @Json.Builder(enabled = true, methodPrefix = "set"))
+   * public class Customer {
+   *   // Static builder() method and inner Builder class with setName(), setAge() methods
+   * }
+   * }</pre>
+   */
+  @Retention(SOURCE)
+  @Target({})
+  @interface Builder {
+    
+    /**
+     * Whether builder pattern should be used for deserialization.
+     * <p>
+     * When enabled, the processor will look for a static builder() method and use
+     * the builder pattern instead of constructors or setters.
+     */
+    boolean enabled() default false;
+    
+    /**
+     * The prefix used for builder setter methods.
+     * <p>
+     * Default is "with" which expects methods like withName(), withAge().
+     * Lombok's default is "" (empty) which expects methods like name(), age().
+     * Lombok with setterPrefix would be "set" expecting methods like setName(), setAge().
+     */
+    String methodPrefix() default "with";
+    
+    /**
+     * The name of the static method that creates the builder instance.
+     * <p>
+     * Defaults to "builder" which expects a static builder() method.
+     */
+    String builderMethod() default "builder";
+    
+    /**
+     * The name of the method that builds the final object from the builder.
+     * <p>
+     * Defaults to "build" which expects a build() method on the builder.
+     */
+    String buildMethod() default "build";
   }
 
   /**

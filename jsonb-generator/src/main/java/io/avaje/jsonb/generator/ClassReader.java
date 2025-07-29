@@ -45,6 +45,9 @@ final class ClassReader implements BeanReader {
 
   /** Flag indicating whether to use the builder pattern for object creation */
   private final boolean useBuilder;
+  
+  /** Configuration for builder pattern */
+  private final BuilderConfig builderConfig;
 
   /** An Interface/abstract type with a single implementation */
   private ClassReader implementation;
@@ -63,32 +66,13 @@ final class ClassReader implements BeanReader {
     this.caseInsensitiveKeys = ncReader.isCaseInsensitiveKeys();
     this.typeReader = new TypeReader(errorContext, beanType, mixInElement, namingConvention, typePropertyKey());
 
-    // Check if the class has a static builder() method
-    boolean hasBuilderMethod = false;
-    for (Element element : beanType.getEnclosedElements()) {
-      if (element.getKind() == ElementKind.METHOD
-          && element.getSimpleName().toString().equals("builder")
-          && element.getModifiers().contains(javax.lang.model.element.Modifier.STATIC)) {
-        hasBuilderMethod = true;
-        break;
-      }
-    }
+    // Read builder configuration from annotation
+    JsonPrism jsonPrism = JsonPrism.getInstanceOn(beanType);
+    this.builderConfig = (jsonPrism != null) ? BuilderConfig.fromPrism(jsonPrism) : BuilderConfig.disabled();
+    this.useBuilder = builderConfig.isEnabled();
 
-    // Check if the class has no public constructors
-    boolean hasNoPublicConstructors = true;
-    for (Element element : beanType.getEnclosedElements()) {
-      if (element.getKind() == ElementKind.CONSTRUCTOR
-          && element.getModifiers().contains(javax.lang.model.element.Modifier.PUBLIC)) {
-        hasNoPublicConstructors = false;
-        break;
-      }
-    }
-
-    // Use builder pattern if the class has a static builder() method and no public constructors
-    this.useBuilder = hasBuilderMethod && hasNoPublicConstructors;
-
-    // Pass the useBuilder flag to the TypeReader BEFORE processing
-    typeReader.setUseBuilder(this.useBuilder);
+    // Pass the builder configuration to the TypeReader BEFORE processing
+    typeReader.setBuilderConfig(this.builderConfig);
 
     // Now process the type
     typeReader.process();
@@ -537,25 +521,25 @@ final class ClassReader implements BeanReader {
       // Use builder pattern
       if (!directReturn) {
         writer.append("    // build and return %s using builder pattern", shortName).eol();
-        writer.append("    var _builder = %s.builder();", shortName).eol();
+        writer.append("    var _builder = %s.%s();", shortName, builderConfig.getBuilderMethod()).eol();
 
-        // Call with* methods on the builder for each field
+        // Call builder setter methods for each field
         for (final FieldReader field : allFields) {
           if (field.includeFromJson()) {
             String fieldName = field.fieldName();
-            String withMethodName = "with" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+            String setterMethodName = builderConfig.getSetterMethodName(fieldName);
             writer.append("    if (_set$%s) {", fieldName).eol();
-            writer.append("      _builder.%s(_val$%s);", withMethodName, fieldName).eol();
+            writer.append("      _builder.%s(_val$%s);", setterMethodName, fieldName).eol();
             writer.append("    }").eol();
           }
         }
 
         // Build the object and return it
-        writer.append("    return _builder.build();").eol();
+        writer.append("    return _builder.%s();", builderConfig.getBuildMethod()).eol();
       } else {
         // Direct return with builder
         writer.append("    // direct return using builder pattern").eol();
-        writer.append("    return %s.builder().build();", shortName).eol();
+        writer.append("    return %s.%s().%s();", shortName, builderConfig.getBuilderMethod(), builderConfig.getBuildMethod()).eol();
       }
     } else {
       // Original implementation for non-builder classes
