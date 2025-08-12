@@ -6,7 +6,10 @@ import io.avaje.jsonb.AdapterFactory;
 import io.avaje.jsonb.Jsonb;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +50,18 @@ final class CoreAdapters {
     return null;
   };
 
+  static final AdapterFactory CONCRETE_COLLECTION_FACTORY = (type, jsonb) -> {
+    Class<?> rawType = Util.rawType(type);
+    if (rawType == ArrayList.class) {
+      return newArrayListAdapter(type, jsonb).nullSafe();
+    } else if (rawType == HashSet.class) {
+      return newHashSetAdapter(type, jsonb).nullSafe();
+    } else if (rawType == HashMap.class) {
+      return newHashMapAdapter(type, jsonb).nullSafe();
+    }
+    return null;
+  };
+
   private static <T> JsonAdapter<List<T>> newListAdapter(Type type, Jsonb jsonb) {
     Type elementType = Util.collectionElementType(type);
     JsonAdapter<T> elementAdapter = jsonb.adapter(elementType);
@@ -57,5 +72,26 @@ final class CoreAdapters {
     Type elementType = Util.collectionElementType(type);
     JsonAdapter<T> elementAdapter = jsonb.adapter(elementType);
     return CoreTypes.createSet(elementAdapter);
+  }
+
+  private static <T> JsonAdapter<ArrayList<T>> newArrayListAdapter(Type type, Jsonb jsonb) {
+    Type elementType = Util.collectionElementType(type);
+    JsonAdapter<T> elementAdapter = jsonb.adapter(elementType);
+    return CoreTypes.createArrayList(elementAdapter);
+  }
+
+  private static <T> JsonAdapter<HashSet<T>> newHashSetAdapter(Type type, Jsonb jsonb) {
+    Type elementType = Util.collectionElementType(type);
+    JsonAdapter<T> elementAdapter = jsonb.adapter(elementType);
+    return CoreTypes.createHashSet(elementAdapter);
+  }
+
+  private static <T> JsonAdapter<HashMap<String, T>> newHashMapAdapter(Type type, Jsonb jsonb) {
+    final var valueTypes = Util.mapValueTypes(type, HashMap.class);
+    if (valueTypes[0] != String.class) {
+      return null;
+    }
+    JsonAdapter<T> valueAdapter = jsonb.adapter(valueTypes[1]);
+    return CoreTypes.createHashMap(valueAdapter);
   }
 }

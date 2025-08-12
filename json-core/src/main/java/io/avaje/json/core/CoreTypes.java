@@ -5,6 +5,9 @@ import io.avaje.json.JsonReader;
 import io.avaje.json.JsonWriter;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -91,6 +94,36 @@ public final class CoreTypes {
    */
   public static <V> JsonAdapter<Set<V>> createSet(JsonAdapter<V> elementAdapter) {
     return CollectionAdapter.createSet(elementAdapter);
+  }
+
+  /**
+   * Create a JsonAdapter for an ArrayList with a given adapter for the elements.
+   *
+   * @param elementAdapter The JsonAdapter used for the elements in the list.
+   * @return The JsonAdapter for the ArrayList.
+   */
+  public static <V> JsonAdapter<ArrayList<V>> createArrayList(JsonAdapter<V> elementAdapter) {
+    return ArrayListAdapter.create(elementAdapter);
+  }
+
+  /**
+   * Create a JsonAdapter for a HashSet with a given adapter for the elements.
+   *
+   * @param elementAdapter The JsonAdapter used for the elements in the set.
+   * @return The JsonAdapter for the HashSet.
+   */
+  public static <V> JsonAdapter<HashSet<V>> createHashSet(JsonAdapter<V> elementAdapter) {
+    return HashSetAdapter.create(elementAdapter);
+  }
+
+  /**
+   * Create a JsonAdapter for a HashMap with a given adapter for the values.
+   *
+   * @param valueAdapter The JsonAdapter used for the values in the map.
+   * @return The JsonAdapter for the HashMap.
+   */
+  public static <V> JsonAdapter<HashMap<String, V>> createHashMap(JsonAdapter<V> valueAdapter) {
+    return HashMapAdapter.create(valueAdapter);
   }
 
   /**
