@@ -6,6 +6,7 @@ module blackbox.test {
   requires static io.avaje.spi;
   requires java.validation;
   requires io.avaje.json.node;
+  requires com.google.common;
 
   provides JsonbExtension
     with
